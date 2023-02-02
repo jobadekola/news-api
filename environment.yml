@@ -1,0 +1,17 @@
+name: news
+channels:
+ - conda-forge
+dependencies:
+ - python=3.9
+ - enlighten
+ - glom
+ - ipykernel
+ - jmespath
+ - pandas
+ - pip
+ - python-dotenv
+ - pytz
+ - pyyaml
+ - requests
+ - snowflake-connector-python
+ - tqdm

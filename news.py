@@ -1,46 +1,53 @@
-from cxone.endpoints.admin_api.base import BaseAdminEndpoint
-from datetime import datetime
-from typing import Optional
-import numpy as np
+import requests
+import json
+import snowflake.connector
 
-
-class Agents(BaseAdminEndpoint):
-    # https://developer.niceincontact.com/API/AdminAPI#/Agents/get-agents
-    endpoint = '/agents'
-    table_name = 'agent'
-    
-    allowed_params: Optional[dict] = {
-        'updatedSince': datetime,
-        'isActive': bool,
-        'searchString': str,
-        'fields': str,
-        'skip': int,
-        'top': int,
-        'orderBy': str
-    }
-    required_params: Optional[list] = None
-    default_params: Optional[dict] = {'top': 10000}
-
-    @property
-    def ids(self):
-        responses = self.get_responses()
-        responses = [response for response in responses if response.ok]
+class SnowflakeIngester:
+    def __init__(self, user, password, account):
+        self.cnx = snowflake.connector.connect(
+            user=user,
+            password=password,
+            account=account
+        )
+        self.cursor = self.cnx.cursor()
         
-        # retrieve unique agent ids from response
-        responses_json = [response.json() for response in responses]
-        ids = [int(agent.get('agentId')) for response_json in responses_json for agent in response_json.get('agents')]
-        return [int(id) for id in np.unique(ids)]
+    def create_table(self, table_name, columns):
+        table_create_query = "CREATE TABLE {} ({});".format(table_name, columns)
+        self.cursor.execute(table_create_query)
+        
+    def insert_data(self, table_name, data):
+        for item in data:
+            insert_query = "INSERT INTO {} VALUES ('{}', {});".format(table_name, item['data_col1'], item['data_col2'])
+            self.cursor.execute(insert_query)
+            
+    def commit(self):
+        self.cnx.commit()
+        
+    def close(self):
+        self.cnx.close()
+        
+def extract_data(url):
+    response = requests.get(url)
+    return response.json()
 
-
-class AgentsSkillData(BaseAdminEndpoint):
-    # https://developer.niceincontact.com/API/AdminAPI#/Agents/Agent%20Skill%20Data
-    # NOTE, this endpoint returns summary data
-    endpoint = '/agents/skill-data'
-    table_name = 'agent_skill_data'
-
-    allowed_params: Optional[dict] = {
-        'startDate': datetime,
-        'endDate': str
-    }
-    required_params: Optional[list] = ['startDate', 'endDate']
+def main():
+    # Extract the data
+    data = extract_data("API_URL")
     
+    # Connect to Snowflake
+    ingester = SnowflakeIngester("SNOWFLAKE_USER", "SNOWFLAKE_PASSWORD", "SNOWFLAKE_ACCOUNT")
+    
+    # Create a table to store the data in Snowflake
+    ingester.create_table("api_data", "data_col1 VARCHAR, data_col2 INTEGER")
+    
+    # Ingest the data into Snowflake
+    ingester.insert_data("api_data", data)
+    
+    # Commit the changes
+    ingester.commit()
+    
+    # Close the connection
+    ingester.close()
+
+if __name__ == "__main__":
+    main()

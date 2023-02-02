@@ -43,3 +43,4 @@ class AgentsSkillData(BaseAdminEndpoint):
         'endDate': str
     }
     required_params: Optional[list] = ['startDate', 'endDate']
+    
